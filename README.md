@@ -121,6 +121,7 @@ json-tools/
 │   └── ai.js          # OpenAI 兼容代理（超时控制、回复解析）
 └── public/
     ├── index.html     # 单页界面
+    ├── favicon.svg    # 浏览器标签图标（绿色花括号）
     ├── style.css      # 样式（含行号、全屏、诊断面板）
     ├── app.js         # 解析/树视图/高亮/历史/AI/比对 前端逻辑
     ├── repair.js      # 容错词法+语法分析的诊断与规则修复引擎

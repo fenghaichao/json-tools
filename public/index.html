@@ -62,6 +62,7 @@
         <button class="tab" data-view="pretty">格式化</button>
         <button class="tab" data-view="mini">压缩</button>
         <button class="tab" data-view="xml">XML</button>
+        <button class="tab" data-view="diff">比对</button>
       </div>
       <div class="pane-tools">
         <label class="indent-label">排序
@@ -99,6 +100,15 @@
       <pre id="prettyView" class="view hljs"></pre>
       <pre id="miniView" class="view"></pre>
       <pre id="xmlView" class="view hl-xml"></pre>
+      <div id="diffView" class="view">
+        <div class="diff-right-input">
+          <div class="diff-right-label">右侧 JSON（左侧为上方主输入框的当前内容）</div>
+          <textarea id="diffRight" spellcheck="false"
+            placeholder="粘贴要比对的第二个 JSON……"></textarea>
+        </div>
+        <div class="diff-summary" id="diffSummary">等待右侧输入</div>
+        <div class="diff-body" id="diffResult"></div>
+      </div>
       <div id="placeholder" class="placeholder">解析结果将显示在这里</div>
     </div>
     <div class="stats" id="stats"></div>
@@ -158,6 +168,7 @@
 </div>
 
 <script src="repair.js"></script>
+<script src="diff.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

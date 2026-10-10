@@ -14,6 +14,7 @@ const el = {
   btnApplyFix: $('#btnApplyFix'), btnAiAnalyze: $('#btnAiAnalyze'),
   aiResult: $('#aiResult'), aiExplain: $('#aiExplain'), btnApplyAi: $('#btnApplyAi'),
   appliedBar: $('#appliedBar'), appliedText: $('#appliedText'), btnUndo: $('#btnUndo'),
+  diff: $('#diffView'), diffRight: $('#diffRight'), diffSummary: $('#diffSummary'), diffResult: $('#diffResult'),
 };
 
 const state = { ws: '默认', data: undefined, valid: false, lastSaved: undefined, allCollapsed: false,
@@ -265,6 +266,7 @@ function parseNow() {
     el.tree.innerHTML = ''; el.pretty.innerHTML = ''; el.mini.textContent = ''; el.xml.innerHTML = '';
     el.placeholder.style.display = '';
     renderDiag();
+    renderDiff();
     return;
   }
   let data;
@@ -282,6 +284,7 @@ function parseNow() {
       state.repair = null;
     }
     renderDiag();
+    renderDiff();
     return;
   }
   state.data = data; state.valid = true;
@@ -309,6 +312,70 @@ function parseNow() {
   const s = computeStats(data);
   el.stats.textContent =
     `字符 ${raw.length.toLocaleString()} · 体积 ${fmtSize(byteSize(raw))} · 节点 ${s.nodes} · 键 ${s.keys} · 对象 ${s.objects} · 数组 ${s.arrays} · 最大深度 ${s.depthMax}`;
+  renderDiff();
+}
+
+/* ---------------- JSON 比对 ---------------- */
+const DIFF_CAP = 500;
+let diffTimer;
+
+function escH(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function fmtVal(v) {
+  let s;
+  try { s = JSON.stringify(v); } catch { s = String(v); }
+  if (s === undefined) s = 'undefined';
+  if (s.length > 160) s = s.slice(0, 160) + '…';
+  return s;
+}
+
+function diffSection(title, items, rowFn) {
+  if (!items.length) return '';
+  const shown = items.slice(0, DIFF_CAP);
+  const more = items.length > shown.length
+    ? `<div class="diff-more">差异过多，仅展示前 ${DIFF_CAP} 条（共 ${items.length} 条）</div>` : '';
+  return `<div class="diff-group"><div class="diff-group-title">${title}（${items.length}）</div>${shown.map(rowFn).join('')}${more}</div>`;
+}
+
+function renderDiff() {
+  if (!el.diff.classList.contains('active')) return;
+  const rightRaw = el.diffRight.value;
+  if (!rightRaw.trim()) {
+    el.diffSummary.textContent = '等待右侧输入';
+    el.diffResult.innerHTML = '';
+    return;
+  }
+  if (!state.valid) {
+    el.diffSummary.textContent = '⚠ 左侧主输入当前不是合法 JSON，请先修正左侧';
+    el.diffResult.innerHTML = '';
+    return;
+  }
+  let right;
+  try {
+    right = JSON.parse(rightRaw);
+  } catch (e) {
+    el.diffSummary.textContent = '✗ 右侧 JSON 解析失败：' + (e.message || '格式错误');
+    el.diffResult.innerHTML = '';
+    return;
+  }
+  const d = diffJson(state.data, right);
+  if (d.equal) {
+    el.diffSummary.innerHTML = '<span class="diff-ok">✓ 两份 JSON 完全一致</span>';
+    el.diffResult.innerHTML = '';
+    return;
+  }
+  el.diffSummary.textContent =
+    `共 ${d.keyDiffs.length + d.valueDiffs.length} 处差异 · 键不一致 ${d.keyDiffs.length} · 数据不一致 ${d.valueDiffs.length}`;
+  el.diffResult.innerHTML =
+    diffSection('键不一致', d.keyDiffs, (x) =>
+      `<div class="diff-row"><span class="diff-side ${x.side}">${x.side === 'left' ? '仅左侧有' : '仅右侧有'}</span>` +
+      `<code class="diff-path">${escH(x.path)}</code><span class="diff-val">${escH(fmtVal(x.value))}</span></div>`) +
+    diffSection('数据不一致', d.valueDiffs, (x) =>
+      `<div class="diff-row"><span class="diff-side changed">值不同</span><code class="diff-path">${escH(x.path)}</code>` +
+      `<span class="diff-old">${escH(fmtVal(x.left))}</span><span class="diff-arrow">→</span>` +
+      `<span class="diff-new">${escH(fmtVal(x.right))}</span>${x.typeChanged ? '<span class="diff-type">类型也不同</span>' : ''}</div>`);
 }
 
 /* ---------------- 诊断面板 / 修复 / AI ---------------- */
@@ -710,9 +777,16 @@ function bind() {
     if (!tab) return;
     document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
     tab.classList.add('active');
-    ['tree', 'pretty', 'mini', 'xml'].forEach((v) => el[v].classList.toggle('active', v === tab.dataset.view));
+    ['tree', 'pretty', 'mini', 'xml', 'diff'].forEach((v) => el[v].classList.toggle('active', v === tab.dataset.view));
+    if (tab.dataset.view === 'diff') el.placeholder.style.display = 'none';
+    else el.placeholder.style.display = state.valid ? 'none' : '';
+    renderDiff();
   });
   el.wsSelect.addEventListener('change', () => switchWs(el.wsSelect.value));
+  el.diffRight.addEventListener('input', () => {
+    clearTimeout(diffTimer);
+    diffTimer = setTimeout(renderDiff, 200);
+  });
   $('#btnWsNew').addEventListener('click', wsNew);
   $('#btnWsRename').addEventListener('click', wsRename);
   $('#btnWsDelete').addEventListener('click', wsDelete);

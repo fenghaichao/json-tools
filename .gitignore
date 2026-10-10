@@ -1,0 +1,18 @@
+# 本地数据（工作区历史记录、AI 配置、状态）——绝不入库
+data/
+
+# Node
+node_modules/
+npm-debug.log*
+*.log
+
+# 系统/编辑器
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# 发布产物
+dist/
+*.tgz
+json-tools-v*.zip

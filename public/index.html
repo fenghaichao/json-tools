@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JSON 在线解析</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">JSON<span>在线解析</span></div>
+  <div class="ws-area">
+    <label for="wsSelect">工作区</label>
+    <select id="wsSelect"></select>
+    <button id="btnWsNew" class="btn ghost" title="新建工作区">新建</button>
+    <button id="btnWsRename" class="btn ghost" title="重命名当前工作区">重命名</button>
+    <button id="btnWsDelete" class="btn ghost danger" title="删除当前工作区">删除</button>
+  </div>
+  <div class="topbar-right">
+    <button id="btnAiCfg" class="btn ghost">⚙ AI 配置</button>
+    <div class="data-hint" id="dataHint" title=""></div>
+  </div>
+</header>
+
+<main class="split">
+  <section class="pane pane-input">
+    <div class="pane-head">
+      <span class="pane-title">输入</span>
+      <div class="pane-tools">
+        <button id="btnSample" class="btn ghost">示例</button>
+        <button id="btnClear" class="btn ghost">清空</button>
+      </div>
+    </div>
+    <textarea id="input" spellcheck="false"
+      placeholder="在此粘贴或输入 JSON……（输入后自动解析并记入当前工作区的历史记录）"></textarea>
+    <div class="status" id="status">等待输入</div>
+    <div class="diag hidden" id="diagPanel">
+      <div class="diag-head">
+        <span class="diag-title">诊断报告 <em id="diagCount"></em></span>
+        <div class="pane-tools">
+          <button id="btnApplyFix" class="btn">应用修复</button>
+          <button id="btnAiAnalyze" class="btn ghost">🤖 AI 分析</button>
+        </div>
+      </div>
+      <ul class="diag-list" id="diagList"></ul>
+      <div class="diag-ai hidden" id="aiResult">
+        <div class="diag-ai-title">🤖 AI 分析结果</div>
+        <div class="diag-ai-text" id="aiExplain"></div>
+        <button class="btn hidden" id="btnApplyAi">应用 AI 修复结果</button>
+      </div>
+      <div class="diag-applied hidden" id="appliedBar">
+        <span id="appliedText">✓ 已应用修复</span>
+        <button class="btn ghost" id="btnUndo">撤销</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="pane pane-output">
+    <div class="pane-head">
+      <div class="tabs" id="tabs">
+        <button class="tab active" data-view="tree">树形视图</button>
+        <button class="tab" data-view="pretty">格式化</button>
+        <button class="tab" data-view="mini">压缩</button>
+        <button class="tab" data-view="xml">XML</button>
+      </div>
+      <div class="pane-tools">
+        <label class="indent-label">排序
+          <select id="sortSelect">
+            <option value="off" selected>保持原序</option>
+            <option value="asc">按键升序</option>
+            <option value="desc">按键降序</option>
+          </select>
+        </label>
+        <label class="indent-label">转义
+          <select id="escapeSelect" title="去除转义：显示时将字符串内的 \&quot; \/ \\ 解码一层，适合嵌套 JSON">
+            <option value="keep" selected>保留转义</option>
+            <option value="un">去除转义</option>
+          </select>
+        </label>
+        <label class="indent-label">缩进
+          <select id="indentSelect">
+            <option value="2" selected>2 空格</option>
+            <option value="4">4 空格</option>
+            <option value="tab">Tab</option>
+          </select>
+        </label>
+        <label class="indent-label" title="在格式化视图中显示行号">
+          <input type="checkbox" id="lineNoCheck"> 行号
+        </label>
+        <button id="btnExpand" class="btn ghost" title="展开/折叠全部">折叠</button>
+        <button id="btnSave" class="btn ghost" title="立即保存到历史记录">保存</button>
+        <button id="btnCopy" class="btn">复制</button>
+        <button id="btnDownload" class="btn">下载</button>
+        <button id="btnFull" class="btn ghost" title="全屏显示结果">⛶ 全屏</button>
+      </div>
+    </div>
+    <div class="output-body">
+      <div id="treeView" class="view active"></div>
+      <pre id="prettyView" class="view hljs"></pre>
+      <pre id="miniView" class="view"></pre>
+      <pre id="xmlView" class="view hl-xml"></pre>
+      <div id="placeholder" class="placeholder">解析结果将显示在这里</div>
+    </div>
+    <div class="stats" id="stats"></div>
+  </section>
+</main>
+
+<section class="history" id="historySection">
+  <div class="history-head">
+    <button class="caret" id="btnHistoryToggle" title="展开/收起">▾</button>
+    <span class="pane-title">历史记录 <em id="historyCount"></em></span>
+    <span class="history-ws" id="historyWsName"></span>
+    <div class="pane-tools">
+      <button id="btnHistoryClear" class="btn ghost danger">清空</button>
+    </div>
+  </div>
+  <div class="history-list" id="historyList"></div>
+</section>
+
+<div class="modal-mask hidden" id="aiModal">
+  <div class="modal">
+    <div class="modal-head">
+      <span>AI 分析配置（OpenAI 兼容接口）</span>
+      <button class="modal-close" id="btnAiClose" title="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="field"><input type="checkbox" id="aiEnabled"> 启用 AI 分析</label>
+      <label class="field">预设服务商
+        <select id="aiPreset">
+          <option value="deepseek">DeepSeek</option>
+          <option value="tongyi">通义千问（阿里云百炼）</option>
+          <option value="kimi">Kimi（月之暗面）</option>
+          <option value="zhipu">智谱 GLM</option>
+          <option value="minimax">MiniMax（海螺）</option>
+          <option value="openai">OpenAI</option>
+          <option value="ollama">本地 Ollama</option>
+          <option value="custom">自定义</option>
+        </select>
+      </label>
+      <label class="field">Base URL
+        <input type="text" id="aiBaseUrl" placeholder="https://api.deepseek.com/v1">
+      </label>
+      <label class="field">模型
+        <input type="text" id="aiModel" placeholder="deepseek-chat">
+      </label>
+      <label class="field">API Key
+        <input type="password" id="aiApiKey" placeholder="">
+        <span class="field-hint" id="aiKeyHint"></span>
+      </label>
+      <p class="field-note">密钥仅保存在本机 data/ai-config.json，由本地服务代理调用，不会返回浏览器明文。Ollama 本地服务可留空密钥。</p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" id="btnAiSave">保存</button>
+      <button class="btn ghost" id="btnAiTest">测试连接</button>
+      <span class="ai-test-result" id="aiTestResult"></span>
+    </div>
+  </div>
+</div>
+
+<script src="repair.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

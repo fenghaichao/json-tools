@@ -12,7 +12,7 @@
 - 🔍 精确错误诊断：坏 JSON 给出**行/列 + 上下文片段**定位，而不是干巴巴一句 SyntaxError
 - 🔧 规则引擎自动修复：注释、单引号、中文引号、无引号键、True/False/None、多余尾逗号、缺逗号/冒号/闭合符、截断等 20+ 类常见错误，一键应用修复结果
 - 🤖 可选 AI 分析：接入任意 OpenAI 兼容大模型（内置 DeepSeek / 通义 / Kimi / 智谱 / MiniMax / OpenAI / Ollama 预设），让模型解释错误并给出修复后的 JSON；API Key 只存在服务端本地文件，不下发给浏览器
-- 🖥 Windows 服务形式：双击 `service\install-autostart.vbs` 即安装为登录后后台常驻，免命令行（也提供 zip / npm / git 三种源码方式）
+- 🖥 Windows 服务形式：双击 `service\install-autostart.vbs` 即安装为登录后后台常驻，免命令行（也提供 zip / npm / git / Docker 多种部署方式）
 
 ---
 
@@ -22,7 +22,7 @@
 
 ### 方式一：下载压缩包（最简单）
 
-1. 到 [Releases](https://github.com/fenghaichao/json-tools/releases) 下载最新 `json-tools-v1.2.1.zip`
+1. 到 [Releases](https://github.com/fenghaichao/json-tools/releases) 下载最新 `json-tools-v1.2.2.zip`
 2. 解压到任意目录
 3. 在该目录执行：
 
@@ -66,6 +66,31 @@ node server.js
 | `uninstall-autostart.vbs` | 取消登录自启（桌面快捷方式保留） |
 
 > 原理：`server.js` 启动后把 PID 与实际端口写入 `%APPDATA%\json-tools\server.pid`，vbs 脚本据此精确启停；取消 = 双击 `uninstall-autostart.vbs` 后删除源码目录，历史记录数据保留。
+
+### 方式五：Docker 部署（NAS / 服务器 / 习惯容器化的用户）
+
+从源码构建并运行（数据放在命名卷里，容器重建不丢）：
+
+```bash
+git clone https://github.com/fenghaichao/json-tools.git
+cd json-tools
+docker build -t json-tools .
+docker run -d --name json-tools -p 3000:3000 \
+  -v json-tools-data:/data --restart unless-stopped json-tools
+```
+
+浏览器访问 <http://localhost:3000>。compose 写法：
+
+```yaml
+services:
+  json-tools:
+    build: .
+    ports: ["3000:3000"]
+    volumes: ["json-tools-data:/data"]
+    restart: unless-stopped
+```
+
+说明：容器内数据固定在 `/data`（工作区、历史、AI 配置），务必挂载出来；镜像自带健康检查（每 30 秒探测 `/api/info`）；如需换端口只改 `-p` 左侧宿主机端口即可。
 
 ---
 
@@ -138,6 +163,7 @@ data/
 ```text
 json-tools/
 ├── server.js          # HTTP 服务 + API 路由（零依赖）
+├── Dockerfile         # 容器镜像（见"方式五"）
 ├── lib/
 │   ├── store.js       # 工作区/历史的文件存储（原子写入）
 │   └── ai.js          # OpenAI 兼容代理（超时控制、回复解析）

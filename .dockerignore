@@ -1,0 +1,11 @@
+.git
+.gitignore
+data/
+dist/
+setup/
+service/
+node_modules/
+*.zip
+*.tgz
+Dockerfile
+.dockerignore

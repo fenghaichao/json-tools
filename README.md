@@ -21,7 +21,7 @@
 
 ### 方式一：下载压缩包（最简单）
 
-1. 到 [Releases](https://github.com/fenghaichao/json-tools/releases) 下载 `json-tools-v1.0.0.zip`
+1. 到 [Releases](https://github.com/fenghaichao/json-tools/releases) 下载 `json-tools-v1.1.0.zip`
 2. 解压到任意目录
 3. 在该目录执行：
 

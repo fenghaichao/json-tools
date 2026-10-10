@@ -12,24 +12,15 @@
 - 🔍 精确错误诊断：坏 JSON 给出**行/列 + 上下文片段**定位，而不是干巴巴一句 SyntaxError
 - 🔧 规则引擎自动修复：注释、单引号、中文引号、无引号键、True/False/None、多余尾逗号、缺逗号/冒号/闭合符、截断等 20+ 类常见错误，一键应用修复结果
 - 🤖 可选 AI 分析：接入任意 OpenAI 兼容大模型（内置 DeepSeek / 通义 / Kimi / 智谱 / MiniMax / OpenAI / Ollama 预设），让模型解释错误并给出修复后的 JSON；API Key 只存在服务端本地文件，不下发给浏览器
-- 📦 Windows 安装版：双击安装、免环境、登录后后台常驻（也提供 zip / npm / git 三种源码方式）
+- 🖥 Windows 服务形式：双击 `service\install-autostart.vbs` 即安装为登录后后台常驻，免命令行（也提供 zip / npm / git 三种源码方式）
 
 ---
 
 ## 安装方法
 
-### 方式一：Windows 安装版（免配置，双击安装）
+前提：安装 [Node.js](https://nodejs.org/) **18 或以上**（本项目零依赖，无需 `npm install`）。
 
-1. 到 [Releases](https://github.com/fenghaichao/json-tools/releases) 下载 `json-tools-setup-v1.2.1.exe`（约 24 MB，内置 Node 运行时，电脑无需安装任何环境）
-2. 双击安装即可：仅安装到当前用户目录（`%LOCALAPPDATA%\Programs\json-tools`），**不需要管理员权限**
-3. 安装后开始菜单 / 桌面出现「打开 JSON 工具」，点一下即自动启动服务并打开浏览器；服务随登录后台常驻，端口 3000 被占用时自动改用 3001–3010
-4. 开始菜单另有「停止 JSON 工具服务」；历史记录等数据保存在 `%APPDATA%\json-tools`，**卸载后仍然保留**
-
-> 安装包未做代码签名，首次运行若出现 SmartScreen「Windows 已保护你的电脑」，点「更多信息 → 仍要运行」即可。
-
-以下方式使用 Node 运行源码，前提：安装 [Node.js](https://nodejs.org/) **18 或以上**（本项目零依赖，无需 `npm install`）。
-
-### 方式二：下载压缩包
+### 方式一：下载压缩包（最简单）
 
 1. 到 [Releases](https://github.com/fenghaichao/json-tools/releases) 下载最新 `json-tools-v1.2.1.zip`
 2. 解压到任意目录
@@ -41,7 +32,7 @@
 
 4. 浏览器打开 <http://localhost:3000>
 
-### 方式三：npm 全局安装
+### 方式二：npm 全局安装
 
 ```bash
 npm install -g cn-json-tools
@@ -50,13 +41,31 @@ json-tools
 
 全局命令 `json-tools` 等价于 `node server.js`，同样打开 <http://localhost:3000>。
 
-### 方式四：git clone
+### 方式三：git clone
 
 ```bash
 git clone https://github.com/fenghaichao/json-tools.git
 cd json-tools
 node server.js
 ```
+
+### 方式四：以服务形式安装（Windows 后台常驻，免命令行）
+
+把源码放到一个固定目录（如 `D:\json-tools`），然后双击 `service\install-autostart.vbs`，它会自动完成：
+
+1. **「启动」文件夹加入后台服务**：每次登录自动静默拉起服务（无黑窗口、无提示），数据保存在 `%APPDATA%\json-tools`，与手动运行完全同一份
+2. **桌面创建「JSON 工具」快捷方式**：双击即打开页面；服务没在运行时会自动先启动再打开，端口 3000 被占用时自动改用 3001–3010
+
+配套的 `service` 脚本（均可直接双击运行）：
+
+| 脚本 | 作用 |
+| --- | --- |
+| `ensure.vbs` | 确保服务在运行（幂等，重复双击不会起第二个）；带 `open` 参数时顺便打开浏览器 |
+| `stop.vbs` | 停止服务（只终止 `server.pid` 记录的进程，绝不误杀其他 Node 程序） |
+| `install-autostart.vbs` | 安装登录自启 + 桌面快捷方式 |
+| `uninstall-autostart.vbs` | 取消登录自启（桌面快捷方式保留） |
+
+> 原理：`server.js` 启动后把 PID 与实际端口写入 `%APPDATA%\json-tools\server.pid`，vbs 脚本据此精确启停；取消 = 双击 `uninstall-autostart.vbs` 后删除源码目录，历史记录数据保留。
 
 ---
 
@@ -68,7 +77,7 @@ node server.js
 | `--data=<目录>` | `./data` | 数据目录（也可用环境变量 `JSON_DATA`） |
 | `--open` | 关闭 | 启动成功后自动打开默认浏览器 |
 
-启动成功后会把 PID 与实际端口写入 `<数据目录>/server.pid`，桌面安装版的启动/停止脚本据此管理服务，避免误杀其他 Node 进程。
+启动成功后会把 PID 与实际端口写入 `<数据目录>/server.pid`，`service/` 下的启动/停止脚本据此管理服务，避免误杀其他 Node 进程。
 
 ```bash
 # 例：换端口、把数据放到 D 盘
@@ -142,15 +151,14 @@ json-tools/
     └── difftext.js    # 文本行/词对齐引擎（双栏比对的 LCS 差分）
 ```
 
-Windows 安装包构建工程（源码运行不需要它）：
+Windows 服务脚本（配合「方式四」使用，源码直接运行不需要它）：
 
 ```text
-setup/
-├── json-tools.iss     # Inno Setup 脚本（per-user 安装、HKCU Run 自启、快捷方式）
-├── ensure.vbs         # 启动器：确保服务在运行（幂等），open 参数时打开浏览器
-├── stop.vbs           # 停止器：仅终止 server.pid 记录的 node 进程
-├── gen_icon.py        # 由 favicon 同款设计生成 app.ico（PIL）
-└── build.ps1          # 一键构建：定位 ISCC + 暂存 node.exe + 编译安装包
+service/
+├── ensure.vbs                # 幂等启动器：确保服务在运行，open 参数时打开浏览器
+├── stop.vbs                  # 停止器：仅终止 server.pid 记录的 node 进程
+├── install-autostart.vbs     # 安装登录自启（启动文件夹快捷方式）+ 桌面快捷方式
+└── uninstall-autostart.vbs   # 取消登录自启
 ```
 服务端 API（供前端调用，也可自行集成）：
 

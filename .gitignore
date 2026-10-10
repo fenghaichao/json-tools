@@ -16,8 +16,3 @@ Thumbs.db
 dist/
 *.tgz
 json-tools-v*.zip
-
-# 安装包构建素材与产物（不入库）
-setup/node.exe
-setup/out/
-setup/icon-preview-64.png

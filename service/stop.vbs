@@ -1,4 +1,4 @@
-' JSON 工具停止器：只终止 server.pid 记录且进程名为 node.exe 的进程，绝不按映像名批量杀
+' JSON 工具停止器：只终止 %APPDATA%\json-tools\server.pid 记录且进程名为 node.exe 的进程
 Option Explicit
 
 Dim fso, shell, dataDir, pidFile

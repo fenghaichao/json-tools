@@ -4,7 +4,7 @@
  * JSON 工具本地服务：零依赖，node server.js 启动后浏览器访问 http://localhost:3000
  * 参数：--port=3000（显式指定则端口被占直接报错） --data=<数据目录> --open（启动后自动打开浏览器）
  * 未指定 --port 时，3000 被占用会自动尝试 3001…3010。
- * 启动成功后把 PID 与实际端口写入 <数据目录>/server.pid（JSON），供桌面版启动/停止脚本使用。
+ * 启动成功后把 PID 与实际端口写入 <数据目录>/server.pid（JSON），供 service/ 启动/停止脚本使用。
  */
 const http = require('http');
 const fs = require('fs');

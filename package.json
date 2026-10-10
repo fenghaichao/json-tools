@@ -1,6 +1,6 @@
 {
   "name": "cn-json-tools",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "本地 JSON 在线解析工具，零依赖 Node 服务：格式化/树视图/压缩/排序/转XML/错误诊断/规则修复/AI 分析，历史记录存本地文件",
   "main": "server.js",
   "bin": {

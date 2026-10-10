@@ -2,11 +2,14 @@
 'use strict';
 /**
  * JSON 工具本地服务：零依赖，node server.js 启动后浏览器访问 http://localhost:3000
- * 参数：--port=3000  --data=<数据目录>
+ * 参数：--port=3000（显式指定则端口被占直接报错） --data=<数据目录> --open（启动后自动打开浏览器）
+ * 未指定 --port 时，3000 被占用会自动尝试 3001…3010。
+ * 启动成功后把 PID 与实际端口写入 <数据目录>/server.pid（JSON），供桌面版启动/停止脚本使用。
  */
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { spawn } = require('child_process');
 const { Store } = require('./lib/store');
 const { AI } = require('./lib/ai');
 
@@ -15,9 +18,13 @@ function argValue(flag) {
   return hit ? hit.slice(flag.length + 3) : null;
 }
 
-const PORT = Number(argValue('port') || process.env.PORT || 3000);
+const EXPLICIT_PORT = argValue('port') || process.env.PORT;
+const PORT = Number(EXPLICIT_PORT || process.env.PORT || 3000);
+const PORT_SPAN = EXPLICIT_PORT ? 0 : 10;
+const AUTO_OPEN = process.argv.includes('--open');
 const DATA_DIR = path.resolve(argValue('data') || process.env.JSON_DATA || path.join(__dirname, 'data'));
 const PUBLIC_DIR = path.join(__dirname, 'public');
+const PID_FILE = path.join(DATA_DIR, 'server.pid');
 
 const store = new Store(DATA_DIR);
 const ai = new AI(DATA_DIR);
@@ -180,16 +187,42 @@ const server = http.createServer((req, res) => {
   serveStatic(req, res, url);
 });
 
+function openBrowser(url) {
+  const opts = { detached: true, stdio: 'ignore' };
+  if (process.platform === 'win32') spawn('cmd', ['/c', 'start', '', url], opts).unref();
+  else if (process.platform === 'darwin') spawn('open', [url], opts).unref();
+  else spawn('xdg-open', [url], opts).unref();
+}
+
+function writePidFile(port) {
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(PID_FILE, JSON.stringify({ pid: process.pid, port }));
+  } catch (_) { /* 只读目录等场景忽略，不影响服务 */ }
+}
+
+let tryPort = PORT;
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
-    console.error(`端口 ${PORT} 已被占用，请用 --port=其他端口 指定，或关闭占用程序。`);
+    if (tryPort < PORT + PORT_SPAN) {
+      tryPort += 1;
+      server.listen(tryPort);
+      return;
+    }
+    console.error(`端口 ${PORT}${PORT_SPAN ? `-${PORT + PORT_SPAN}` : ''} 均被占用，请用 --port=其他端口 指定，或关闭占用程序。`);
   } else {
     console.error('服务启动失败：', err.message);
   }
   process.exit(1);
 });
 
-server.listen(PORT, () => {
-  console.log(`JSON 工具已启动：http://localhost:${PORT}`);
+server.on('listening', () => {
+  const port = server.address().port;
+  writePidFile(port);
+  process.on('exit', () => { try { fs.rmSync(PID_FILE, { force: true }); } catch (_) {} });
+  console.log(`JSON 工具已启动：http://localhost:${port}`);
   console.log(`数据目录：${DATA_DIR}`);
+  if (AUTO_OPEN) openBrowser(`http://localhost:${port}`);
 });
+
+server.listen(tryPort);

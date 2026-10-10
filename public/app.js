@@ -15,10 +15,13 @@ const el = {
   aiResult: $('#aiResult'), aiExplain: $('#aiExplain'), btnApplyAi: $('#btnApplyAi'),
   appliedBar: $('#appliedBar'), appliedText: $('#appliedText'), btnUndo: $('#btnUndo'),
   diff: $('#diffView'), diffRight: $('#diffRight'), diffSummary: $('#diffSummary'), diffResult: $('#diffResult'),
+  btnBc: $('#btnBc'), bcOverlay: $('#bcOverlay'), bcBody: $('#bcBody'), bcCount: $('#bcCount'),
+  bcPrev: $('#bcPrev'), bcNext: $('#bcNext'), bcClose: $('#bcClose'),
+  bcAccRight: $('#bcAccRight'), bcAccLeft: $('#bcAccLeft'),
 };
 
 const state = { ws: '默认', data: undefined, valid: false, lastSaved: undefined, allCollapsed: false,
-  repair: null, undoText: null, aiFix: null };
+  repair: null, undoText: null, aiFix: null, diffRightVal: undefined, bc: { blocks: [], A: [], B: [], idx: -1 } };
 
 /* ---------------- API ---------------- */
 async function api(path, opts = {}) {
@@ -341,6 +344,7 @@ function diffSection(title, items, rowFn) {
 
 function renderDiff() {
   if (!el.diff.classList.contains('active')) return;
+  el.btnBc.classList.add('hidden');
   const rightRaw = el.diffRight.value;
   if (!rightRaw.trim()) {
     el.diffSummary.textContent = '等待右侧输入';
@@ -360,6 +364,8 @@ function renderDiff() {
     el.diffResult.innerHTML = '';
     return;
   }
+  state.diffRightVal = right;
+  el.btnBc.classList.remove('hidden');
   const d = diffJson(state.data, right);
   if (d.equal) {
     el.diffSummary.innerHTML = '<span class="diff-ok">✓ 两份 JSON 完全一致</span>';
@@ -376,6 +382,92 @@ function renderDiff() {
       `<div class="diff-row"><span class="diff-side changed">值不同</span><code class="diff-path">${escH(x.path)}</code>` +
       `<span class="diff-old">${escH(fmtVal(x.left))}</span><span class="diff-arrow">→</span>` +
       `<span class="diff-new">${escH(fmtVal(x.right))}</span>${x.typeChanged ? '<span class="diff-type">类型也不同</span>' : ''}</div>`);
+}
+
+/* ---------------- 双栏比对（BC 风格覆盖层） ---------------- */
+const BC_MAX_LINES = 50000;
+
+function bcTokenHtml(segs, cls) {
+  return segs.map((s) => (s.s === 'eq' ? escH(s.text) : `<b class="${cls}">${escH(s.text)}</b>`)).join('');
+}
+
+function bcOpen() {
+  if (!state.valid || state.diffRightVal === undefined) return;
+  const ind = indentWidth();
+  const A = JSON.stringify(state.data, null, ind).split('\n');
+  const B = JSON.stringify(state.diffRightVal, null, ind).split('\n');
+  if (A.length > BC_MAX_LINES || B.length > BC_MAX_LINES) {
+    el.bcBody.innerHTML = '<div class="bc-empty">内容过大（超过 5 万行），双栏比对不适用</div>';
+    el.bcCount.textContent = '0 / 0';
+    el.bcOverlay.classList.remove('hidden');
+    state.bc = { blocks: [], A: [], B: [], idx: -1 };
+    return;
+  }
+  const { rows, blocks, count } = diffText.alignLines(A, B);
+  state.bc = { blocks, A, B, idx: -1 };
+  el.bcBody.innerHTML = `<table class="bc-table">${rows.map((row, ri) => {
+    let lh = ''; let rh = ''; let lc = ''; let rc = '';
+    if (row.type === 'eq') { lh = escH(row.l); rh = escH(row.r); }
+    else if (row.type === 'chg') {
+      const td = diffText.tokensDiff(row.l, row.r);
+      lh = bcTokenHtml(td.l, 'wdel'); rh = bcTokenHtml(td.r, 'wins');
+      lc = rc = ' bc-mark';
+    } else if (row.type === 'del') { lh = escH(row.l); lc = ' bc-mark'; rc = ' bc-null'; }
+    else { rh = escH(row.r); rc = ' bc-mark'; lc = ' bc-null'; }
+    return `<tr class="bc-${row.type}" id="bcr${ri}">` +
+      `<td class="bc-no${lc}">${row.lno ?? ''}</td><td class="bc-cell${lc}">${lh || ' '}</td>` +
+      `<td class="bc-no${rc}">${row.rno ?? ''}</td><td class="bc-cell${rc}">${rh || ' '}</td></tr>`;
+  }).join('')}</table>`;
+  el.bcCount.textContent = count ? `共 ${count} 处差异` : '完全一致';
+  el.bcOverlay.classList.remove('hidden');
+  if (count) bcGoto(0); else if (A.length === 0 && B.length === 0) {
+    el.bcBody.innerHTML = '<div class="bc-empty">双方均为空</div>';
+  }
+}
+
+function bcGoto(i) {
+  const { blocks } = state.bc;
+  if (!blocks.length) return;
+  state.bc.idx = (i + blocks.length) % blocks.length;
+  el.bcCount.textContent = `${state.bc.idx + 1} / ${blocks.length}`;
+  const tr = document.getElementById('bcr' + blocks[state.bc.idx].row);
+  if (!tr) return;
+  tr.scrollIntoView({ block: 'center' });
+  tr.classList.add('bc-flash');
+  setTimeout(() => tr.classList.remove('bc-flash'), 900);
+}
+
+/** 将当前差异块的来源侧行片段整块覆盖到目标侧（toRight: 左→右；否则 右→左） */
+function bcAccept(toRight) {
+  const { blocks, A, B, idx } = state.bc;
+  if (idx < 0 || !blocks.length) return;
+  const b = blocks[idx];
+  const src = (toRight ? A : B).slice(toRight ? b.l0 : b.r0, toRight ? b.l1 : b.r1);
+  const dst = toRight ? B : A;
+  const merged = [...dst.slice(0, toRight ? b.r0 : b.l0), ...src, ...dst.slice(toRight ? b.r1 : b.l1)].join('\n');
+  try {
+    JSON.parse(merged);
+  } catch {
+    const old = el.bcCount.textContent;
+    el.bcCount.textContent = '接受结果不是合法 JSON，已取消';
+    el.bcCount.classList.add('bc-warn');
+    setTimeout(() => {
+      if (el.bcCount.textContent === '接受结果不是合法 JSON，已取消') {
+        el.bcCount.textContent = old;
+        el.bcCount.classList.remove('bc-warn');
+      }
+    }, 2000);
+    return;
+  }
+  if (toRight) { el.diffRight.value = merged; renderDiff(); }
+  else { el.input.value = merged; parseNow(); }
+  bcOpen();
+  const n = state.bc.blocks.length;
+  if (n) bcGoto(Math.min(idx, n - 1));
+}
+
+function bcClose() {
+  el.bcOverlay.classList.add('hidden');
 }
 
 /* ---------------- 诊断面板 / 修复 / AI ---------------- */
@@ -786,6 +878,18 @@ function bind() {
   el.diffRight.addEventListener('input', () => {
     clearTimeout(diffTimer);
     diffTimer = setTimeout(renderDiff, 200);
+  });
+  el.btnBc.addEventListener('click', bcOpen);
+  el.bcPrev.addEventListener('click', () => bcGoto(state.bc.idx - 1));
+  el.bcNext.addEventListener('click', () => bcGoto(state.bc.idx + 1));
+  el.bcAccRight.addEventListener('click', () => bcAccept(true));
+  el.bcAccLeft.addEventListener('click', () => bcAccept(false));
+  el.bcClose.addEventListener('click', bcClose);
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape' && !el.bcOverlay.classList.contains('hidden')) bcClose();
+    if (el.bcOverlay.classList.contains('hidden')) return;
+    if (ev.key === 'ArrowDown' || ev.key === 'n') { ev.preventDefault(); bcGoto(state.bc.idx + 1); }
+    if (ev.key === 'ArrowUp' || ev.key === 'p') { ev.preventDefault(); bcGoto(state.bc.idx - 1); }
   });
   $('#btnWsNew').addEventListener('click', wsNew);
   $('#btnWsRename').addEventListener('click', wsRename);

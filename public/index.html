@@ -102,7 +102,10 @@
       <pre id="xmlView" class="view hl-xml"></pre>
       <div id="diffView" class="view">
         <div class="diff-right-input">
-          <div class="diff-right-label">右侧 JSON（左侧为上方主输入框的当前内容）</div>
+          <div class="diff-right-label">
+            <span>右侧 JSON（左侧为上方主输入框的当前内容）</span>
+            <button class="btn ghost hidden" id="btnBc">双栏比对</button>
+          </div>
           <textarea id="diffRight" spellcheck="false"
             placeholder="粘贴要比对的第二个 JSON……"></textarea>
         </div>
@@ -167,8 +170,35 @@
   </div>
 </div>
 
+<div id="bcOverlay" class="bc-overlay hidden">
+  <div class="bc-bar">
+    <span class="bc-title">双栏比对</span>
+    <div class="bc-nav">
+      <button class="btn ghost" id="bcPrev">‹ 上一处</button>
+      <span class="bc-count" id="bcCount">0 / 0</span>
+      <button class="btn ghost" id="bcNext">下一处 ›</button>
+    </div>
+    <div class="bc-accept">
+      <button class="btn ghost" id="bcAccRight" title="将当前差异块的左侧内容覆盖到右侧">← 接受左到右</button>
+      <button class="btn ghost" id="bcAccLeft" title="将当前差异块的右侧内容覆盖到左侧">接受右到左 →</button>
+    </div>
+    <span class="bc-legend">
+      <i class="lg lg-del"></i>左侧独有
+      <i class="lg lg-ins"></i>右侧独有
+      <i class="lg lg-chg"></i>内容不同
+    </span>
+    <button class="btn" id="bcClose">关闭 (Esc)</button>
+  </div>
+  <div class="bc-cols">
+    <div class="bc-col-head">左侧 · 主输入框</div>
+    <div class="bc-col-head">右侧 · 比对输入</div>
+  </div>
+  <div class="bc-body" id="bcBody"></div>
+</div>
+
 <script src="repair.js"></script>
 <script src="diff.js"></script>
+<script src="difftext.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

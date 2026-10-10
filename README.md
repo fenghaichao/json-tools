@@ -12,16 +12,26 @@
 - 🔍 精确错误诊断：坏 JSON 给出**行/列 + 上下文片段**定位，而不是干巴巴一句 SyntaxError
 - 🔧 规则引擎自动修复：注释、单引号、中文引号、无引号键、True/False/None、多余尾逗号、缺逗号/冒号/闭合符、截断等 20+ 类常见错误，一键应用修复结果
 - 🤖 可选 AI 分析：接入任意 OpenAI 兼容大模型（内置 DeepSeek / 通义 / Kimi / 智谱 / MiniMax / OpenAI / Ollama 预设），让模型解释错误并给出修复后的 JSON；API Key 只存在服务端本地文件，不下发给浏览器
+- 📦 Windows 安装版：双击安装、免环境、登录后后台常驻（也提供 zip / npm / git 三种源码方式）
 
 ---
 
 ## 安装方法
 
-前提：安装 [Node.js](https://nodejs.org/) **18 或以上**（本项目零依赖，无需 `npm install`）。
+### 方式一：Windows 安装版（免配置，双击安装）
 
-### 方式一：下载压缩包（最简单）
+1. 到 [Releases](https://github.com/fenghaichao/json-tools/releases) 下载 `json-tools-setup-v1.2.1.exe`（约 24 MB，内置 Node 运行时，电脑无需安装任何环境）
+2. 双击安装即可：仅安装到当前用户目录（`%LOCALAPPDATA%\Programs\json-tools`），**不需要管理员权限**
+3. 安装后开始菜单 / 桌面出现「打开 JSON 工具」，点一下即自动启动服务并打开浏览器；服务随登录后台常驻，端口 3000 被占用时自动改用 3001–3010
+4. 开始菜单另有「停止 JSON 工具服务」；历史记录等数据保存在 `%APPDATA%\json-tools`，**卸载后仍然保留**
 
-1. 到 [Releases](https://github.com/fenghaichao/json-tools/releases) 下载最新 `json-tools-v1.2.0.zip`
+> 安装包未做代码签名，首次运行若出现 SmartScreen「Windows 已保护你的电脑」，点「更多信息 → 仍要运行」即可。
+
+以下方式使用 Node 运行源码，前提：安装 [Node.js](https://nodejs.org/) **18 或以上**（本项目零依赖，无需 `npm install`）。
+
+### 方式二：下载压缩包
+
+1. 到 [Releases](https://github.com/fenghaichao/json-tools/releases) 下载最新 `json-tools-v1.2.1.zip`
 2. 解压到任意目录
 3. 在该目录执行：
 
@@ -31,7 +41,7 @@
 
 4. 浏览器打开 <http://localhost:3000>
 
-### 方式二：npm 全局安装
+### 方式三：npm 全局安装
 
 ```bash
 npm install -g cn-json-tools
@@ -40,7 +50,7 @@ json-tools
 
 全局命令 `json-tools` 等价于 `node server.js`，同样打开 <http://localhost:3000>。
 
-### 方式三：git clone
+### 方式四：git clone
 
 ```bash
 git clone https://github.com/fenghaichao/json-tools.git
@@ -54,8 +64,11 @@ node server.js
 
 | 参数 | 默认值 | 说明 |
 | --- | --- | --- |
-| `--port=3000` | `3000` | 监听端口（也可用环境变量 `PORT`） |
+| `--port=3000` | `3000` | 监听端口（也可用环境变量 `PORT`）；未显式指定时端口被占会自动尝试 3001–3010 |
 | `--data=<目录>` | `./data` | 数据目录（也可用环境变量 `JSON_DATA`） |
+| `--open` | 关闭 | 启动成功后自动打开默认浏览器 |
+
+启动成功后会把 PID 与实际端口写入 `<数据目录>/server.pid`，桌面安装版的启动/停止脚本据此管理服务，避免误杀其他 Node 进程。
 
 ```bash
 # 例：换端口、把数据放到 D 盘
@@ -129,6 +142,16 @@ json-tools/
     └── difftext.js    # 文本行/词对齐引擎（双栏比对的 LCS 差分）
 ```
 
+Windows 安装包构建工程（源码运行不需要它）：
+
+```text
+setup/
+├── json-tools.iss     # Inno Setup 脚本（per-user 安装、HKCU Run 自启、快捷方式）
+├── ensure.vbs         # 启动器：确保服务在运行（幂等），open 参数时打开浏览器
+├── stop.vbs           # 停止器：仅终止 server.pid 记录的 node 进程
+├── gen_icon.py        # 由 favicon 同款设计生成 app.ico（PIL）
+└── build.ps1          # 一键构建：定位 ISCC + 暂存 node.exe + 编译安装包
+```
 服务端 API（供前端调用，也可自行集成）：
 
 ```text

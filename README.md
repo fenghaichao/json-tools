@@ -1,6 +1,6 @@
 # JSON Tools — 本地 JSON 在线解析工具
 
-一个**零依赖**的本地 JSON 工具箱，用 Node.js 自带模块实现，风格对标 [json.cn](https://www.json.cn/)。
+一个**零依赖**的本地 JSON 工具箱，用 Node.js 自带模块实现。
 启动后浏览器访问 `http://localhost:3000` 即可使用，所有数据保存在**本地文件**，不碰任何浏览器存储（无 localStorage / IndexedDB / Cookie）。
 
 - ✍️ 输入即解析（200ms 防抖），实时语法高亮

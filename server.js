@@ -136,7 +136,7 @@ async function handleApi(req, res, url) {
     if (body.input.length > 4 * 1024 * 1024) {
       return sendJson(res, 400, { error: '内容过大（限 4MB）' });
     }
-    return sendJson(res, 201, store.addHistory(q.get('ws') || '默认', body.input));
+    return sendJson(res, 201, store.addHistory(q.get('ws') || '默认', body.input, body.format === 'yaml' ? 'yaml' : 'json'));
   }
   if (p === '/api/history/delete' && req.method === 'POST') {
     const body = await readBody(req);

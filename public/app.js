@@ -4,6 +4,7 @@ const $ = (s) => document.querySelector(s);
 const el = {
   input: $('#input'), status: $('#status'), stats: $('#stats'),
   tree: $('#treeView'), pretty: $('#prettyView'), mini: $('#miniView'), xml: $('#xmlView'),
+  yaml: $('#yamlView'), fmtSel: $('#formatSelect'),
   placeholder: $('#placeholder'), indent: $('#indentSelect'), sort: $('#sortSelect'),
   lineNo: $('#lineNoCheck'), outputPane: document.querySelector('.pane-output'),
   wsSelect: $('#wsSelect'), histList: $('#historyList'), histCount: $('#historyCount'),
@@ -21,6 +22,7 @@ const el = {
 };
 
 const state = { ws: '默认', data: undefined, valid: false, lastSaved: undefined, allCollapsed: false,
+  format: 'json', yamlText: '',
   repair: null, undoText: null, aiFix: null, diffRightVal: undefined, bc: { blocks: [], A: [], B: [], idx: -1 } };
 
 /* ---------------- API ---------------- */
@@ -266,26 +268,33 @@ function parseNow() {
     state.data = undefined; state.valid = false; state.repair = null;
     el.status.textContent = '等待输入'; el.status.className = 'status';
     el.stats.textContent = '';
-    el.tree.innerHTML = ''; el.pretty.innerHTML = ''; el.mini.textContent = ''; el.xml.innerHTML = '';
+    el.tree.innerHTML = ''; el.pretty.innerHTML = ''; el.mini.textContent = ''; el.xml.innerHTML = ''; el.yaml.textContent = '';
     el.placeholder.style.display = '';
     renderDiag();
     renderDiff();
     return;
   }
   let data;
+  const fmt = state.format;
   try {
-    data = JSON.parse(raw);
+    data = fmt === 'yaml' ? yamlKit.parseYaml(raw) : JSON.parse(raw);
   } catch (e) {
     state.valid = false;
-    el.status.textContent = '✗ ' + locateError(raw, e);
+    if (fmt === 'yaml') {
+      el.status.textContent = `✗ YAML 错误：${e.message}（第 ${e.line || '?'} 行第 ${e.col || '?'} 列）`;
+      state.repair = null;
+    } else {
+      el.status.textContent = '✗ ' + locateError(raw, e);
+      try {
+        state.repair = repairJson(raw);
+      } catch (err) {
+        console.warn('规则引擎异常：', err);
+        state.repair = null;
+      }
+    }
     el.status.className = 'status err';
     el.stats.textContent = '';
-    try {
-      state.repair = repairJson(raw);
-    } catch (err) {
-      console.warn('规则引擎异常：', err);
-      state.repair = null;
-    }
+    el.yaml.textContent = '';
     renderDiag();
     renderDiff();
     return;
@@ -293,7 +302,7 @@ function parseNow() {
   state.data = data; state.valid = true;
   state.repair = null;
   renderDiag();
-  el.status.textContent = '✓ 合法的 JSON';
+  el.status.textContent = fmt === 'yaml' ? '✓ YAML 解析成功（已归一化为 JSON）' : '✓ 合法的 JSON';
   el.status.className = 'status ok';
   el.placeholder.style.display = 'none';
 
@@ -307,6 +316,8 @@ function parseNow() {
     .join('');
   el.mini.textContent = JSON.stringify(vd);
   el.xml.innerHTML = hlXml(jsonToXml(vd));
+  state.yamlText = yamlKit.stringifyYaml(vd, typeof ind === 'number' ? ind : 2);
+  el.yaml.textContent = state.yamlText;
   el.tree.innerHTML = '';
   el.tree.appendChild(buildTree(vd));
   state.allCollapsed = false;
@@ -626,7 +637,7 @@ async function saveToHistory(force = false) {
   const raw = el.input.value;
   if (!raw.trim() || (!force && raw === state.lastSaved)) return;
   try {
-    await api(`/api/history?ws=${encodeURIComponent(state.ws)}`, { method: 'POST', body: { input: raw } });
+    await api(`/api/history?ws=${encodeURIComponent(state.ws)}`, { method: 'POST', body: { input: raw, format: state.format } });
     state.lastSaved = raw;
     await Promise.all([loadHistory(), loadWorkspaces()]);
   } catch (e) { console.warn('保存历史失败：', e.message); }
@@ -659,7 +670,7 @@ function renderHistory() {
 
     const preview = document.createElement('span');
     preview.className = 'hist-preview';
-    preview.textContent = item.input.replace(/\s+/g, ' ').slice(0, 90);
+    preview.textContent = (item.format === 'yaml' ? '[YAML] ' : '') + item.input.replace(/\s+/g, ' ').slice(0, 90);
 
     const size = document.createElement('span');
     size.className = 'hist-size';
@@ -679,6 +690,8 @@ function renderHistory() {
     row.append(time, preview, size, del);
     row.addEventListener('click', () => {
       el.input.value = item.input;
+      state.format = item.format === 'yaml' ? 'yaml' : 'json';
+      el.fmtSel.value = state.format;
       state.lastSaved = item.input; // 从历史载入不产生重复记录
       parseNow();
     });
@@ -704,6 +717,8 @@ async function loadWorkspaces() {
 async function loadLatestIntoInput() {
   if (historyData.length) {
     el.input.value = historyData[0].input;
+    state.format = historyData[0].format === 'yaml' ? 'yaml' : 'json';
+    el.fmtSel.value = state.format;
     state.lastSaved = historyData[0].input;
     parseNow();
   }
@@ -748,6 +763,7 @@ async function wsDelete() {
 function currentText() {
   if (!state.valid) return '';
   if (el.xml.classList.contains('active')) return jsonToXml(getViewData());
+  if (el.yaml.classList.contains('active')) return state.yamlText;
   if (el.mini.classList.contains('active')) return JSON.stringify(getViewData());
   return JSON.stringify(getViewData(), null, indentWidth());
 }
@@ -772,8 +788,10 @@ function downloadResult() {
   if (!text) return alert('没有可下载的结果');
   let name = 'formatted.json';
   if (el.xml.classList.contains('active')) name = 'converted.xml';
+  else if (el.yaml.classList.contains('active')) name = 'converted.yaml';
   else if (el.mini.classList.contains('active')) name = 'minified.json';
-  const blob = new Blob([text], { type: name.endsWith('.xml') ? 'application/xml' : 'application/json' });
+  const mime = name.endsWith('.xml') ? 'application/xml' : name.endsWith('.yaml') ? 'text/yaml' : 'application/json';
+  const blob = new Blob([text], { type: mime });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = name;
@@ -820,6 +838,7 @@ const SAMPLE = JSON.stringify({
 function bind() {
   el.input.addEventListener('input', onInput);
   el.indent.addEventListener('change', parseNow);
+  el.fmtSel.addEventListener('change', () => { state.format = el.fmtSel.value; parseNow(); });
   el.sort.addEventListener('change', parseNow);
   el.escape.addEventListener('change', parseNow);
   el.lineNo.addEventListener('change', () => el.pretty.classList.toggle('numbered', el.lineNo.checked));
@@ -869,7 +888,7 @@ function bind() {
     if (!tab) return;
     document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
     tab.classList.add('active');
-    ['tree', 'pretty', 'mini', 'xml', 'diff'].forEach((v) => el[v].classList.toggle('active', v === tab.dataset.view));
+    ['tree', 'pretty', 'mini', 'xml', 'yaml', 'diff'].forEach((v) => el[v].classList.toggle('active', v === tab.dataset.view));
     if (tab.dataset.view === 'diff') el.placeholder.style.display = 'none';
     else el.placeholder.style.display = state.valid ? 'none' : '';
     renderDiff();
